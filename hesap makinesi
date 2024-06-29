@@ -1,37 +1,102 @@
+import tkinter as tk
+from tkinter import messagebox
+
+
 def topla(a, b):
     return a + b
 
 def cikar(a, b):
     return a - b
 
+def carp(a, b):
+    return a * b
+
+def bol(a, b):
+    if b != 0:
+        return a / b
+    else:
+        raise ValueError("Sıfıra bölme hatası")
+
+
 def hesapla():
-    print('Toplama için 1, çıkarma için 2, bitirmek için 3 e tıklayınız')
-    
-    while True:
-        try:
-            cevap = int(input(' (1/2/3): '))
-            if cevap == 3:
-                print('Çıkış yapılıyor')
-                break
+    try:
+        a = float(entry1.get())
+        b = float(entry2.get())
+        islem = operation.get()
 
-            elif cevap == 1:
-                a = int(input('Birinci sayıyı giriniz: '))
-                b = int(input('İkinci sayıyıyı giriniz: '))
-                print('Sonuç: ', topla(a, b))
+        if islem == 'Toplama':
+            sonuc = topla(a, b)
+        elif islem == 'Çıkarma':
+            sonuc = cikar(a, b)
+        elif islem == 'Çarpma':
+            sonuc = carp(a, b)
+        elif islem == 'Bölme':
+            sonuc = bol(a, b)
+        else:
+            raise ValueError("Geçersiz İşlem")
 
-            elif cevap == 2:
-                a = int(input('Birinci sayıyı giriniz: '))
-                b = int(input('İkinci sayıyı giriniz: '))
-                print('Sonuç: ', cikar(a, b))
-                
-            else:
-                print('Yanlış işlem yaptınız')
-
-        except ValueError:
-            print('''
-HATA
-LÜTFEN GEÇERLİ BİR SAYI GİRİNİZ
-            ''')
+        result_label.config(text=f"Sonuç: {sonuc}")
+    except ValueError as e:
+        messagebox.showerror("Hata", str(e))
+    except Exception as e:
+        messagebox.showerror("Hata", "Bir hata oluştu. Detaylar: " + str(e))
 
 
-hesapla()
+root = tk.Tk()
+root.title("Gelişmiş Hesap Makinesi")
+
+window_width = 400
+window_height = 500
+screen_width = root.winfo_screenwidth()
+screen_height = root.winfo_screenheight()
+x_coordinate = int((screen_width/2) - (window_width/2))
+y_coordinate = int((screen_height/2) - (window_height/2))
+root.geometry(f'{window_width}x{window_height}+{x_coordinate}+{y_coordinate}')
+
+
+root.configure(bg='#f0f0f0')
+
+
+title_label = tk.Label(root, text="HESAP MAKİNESİ", font=("Helvetica", 24, "bold"), bg='#f0f0f0', fg='#333')
+
+
+title_label.pack(pady=20)
+
+
+frame = tk.Frame(root, bg='#ffffff', bd=2, relief=tk.RAISED)
+
+
+frame.place(relx=0.5, rely=0.3, relwidth=0.9, relheight=0.45, anchor='n')
+
+
+label1 = tk.Label(frame, text="Sayı 1:", font=("Helvetica", 16), bg='#ffffff')
+label1.grid(row=0, column=0, padx=10, pady=5, sticky='w')
+entry1 = tk.Entry(frame, font=("Helvetica", 16), bd=2, relief=tk.SOLID)
+entry1.grid(row=0, column=1, padx=10, pady=5)
+
+label2 = tk.Label(frame, text="Sayı 2:", font=("Helvetica", 16), bg='#ffffff')
+label2.grid(row=1, column=0, padx=10, pady=5, sticky='w')
+entry2 = tk.Entry(frame, font=("Helvetica", 16), bd=2, relief=tk.SOLID)
+entry2.grid(row=1, column=1, padx=10, pady=5)
+
+label3 = tk.Label(frame, text="İşlem:", font=("Helvetica", 16), bg='#ffffff')
+label3.grid(row=2, column=0, padx=10, pady=5, sticky='w')
+operation = tk.StringVar()
+operation.set("Toplama")
+operation_menu = tk.OptionMenu(frame, operation, "Toplama", "Çıkarma", "Çarpma", "Bölme")
+operation_menu.config(font=("Helvetica", 16), bg='#ffffff', bd=2)
+operation_menu.grid(row=2, column=1, padx=10, pady=5)
+
+
+calculate_button = tk.Button(root, text="HESAPLA", font=("Helvetica", 18, "bold"), command=hesapla, bg='#007bff', fg='#ffffff', bd=2, relief=tk.RAISED)
+
+calculate_button.place(relx=0.5, rely=0.8, relwidth=0.4, anchor='center')
+
+
+result_label = tk.Label(root, text="Sonuç: ", font=("Helvetica", 20, "bold"), bg='#f0f0f0', fg='#333')
+
+
+result_label.pack(pady=20)
+
+
+root.mainloop()
