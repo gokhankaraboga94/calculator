@@ -1,0 +1,37 @@
+def topla(a, b):
+    return a + b
+
+def cikar(a, b):
+    return a - b
+
+def hesapla():
+    print('Toplama için 1, çıkarma için 2, bitirmek için 3 e tıklayınız')
+    
+    while True:
+        try:
+            cevap = int(input(' (1/2/3): '))
+            if cevap == 3:
+                print('Çıkış yapılıyor')
+                break
+
+            elif cevap == 1:
+                a = int(input('Birinci sayıyı giriniz: '))
+                b = int(input('İkinci sayıyıyı giriniz: '))
+                print('Sonuç: ', topla(a, b))
+
+            elif cevap == 2:
+                a = int(input('Birinci sayıyı giriniz: '))
+                b = int(input('İkinci sayıyı giriniz: '))
+                print('Sonuç: ', cikar(a, b))
+                
+            else:
+                print('Yanlış işlem yaptınız')
+
+        except ValueError:
+            print('''
+HATA
+LÜTFEN GEÇERLİ BİR SAYI GİRİNİZ
+            ''')
+
+
+hesapla()
