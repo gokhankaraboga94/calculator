@@ -1,172 +1,170 @@
-# Gelişmiş karakter analizini web ortamında çalıştırmak için Flask kullanacağız.
-# Bu örnekte, kullanıcı web arayüzünden sorulara cevap verecek, ardından kişilik analizi ve karakter taklidi sunulacak.
-
-from flask import Flask, render_template_string, request
-from textblob import TextBlob
-from collections import defaultdict
-
-app = Flask(__name__)
-
-# HTML arayüz şablonu
-html_template = """
 <!DOCTYPE html>
-<html>
+<html lang="tr">
 <head>
-    <title>Karakter Analizi</title>
-    <style>
-        body { font-family: Arial; padding: 30px; background-color: #f4f4f4; }
-        h1 { color: #444; }
-        textarea { width: 100%; height: 80px; }
-        .question { margin-bottom: 20px; }
-        .result { background-color: #fff; padding: 20px; margin-top: 30px; border-radius: 5px; }
-        input[type="submit"] { padding: 10px 20px; font-size: 16px; }
-    </style>
+  <meta charset="UTF-8">
+  <title>Karakter Analizi & Taklit</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f0f2f5; margin:0; padding:20px; }
+    h1 { text-align:center; }
+    form { max-width:800px; margin:auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.1); }
+    .section { margin-bottom:25px; }
+    .section h2 { border-bottom:1px solid #ccc; padding-bottom:5px; }
+    .question { margin-bottom:15px; }
+    label { font-weight:bold; display:block; margin-bottom:5px; }
+    textarea { width:100%; height:70px; padding:8px; border-radius:4px; border:1px solid #ccc; resize:vertical; }
+    button { display:block; margin:20px auto; padding:10px 20px; font-size:16px; background:#007bff; color:#fff; border:none; border-radius:4px; cursor:pointer; }
+    button:hover { background:#0056b3; }
+    #result { max-width:800px; margin:30px auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.05); }
+    .trait { margin-bottom:8px; }
+  </style>
 </head>
 <body>
-    <h1>Karakter Analizi Formu</h1>
-    <form method="post">
-        {% for cat, qs in questions.items() %}
-            <h3>{{ cat.upper() }}</h3>
-            {% for q in qs %}
-                <div class="question">
-                    <label>{{ q }}</label><br>
-                    <textarea name="{{ q }}"></textarea>
-                </div>
-            {% endfor %}
-        {% endfor %}
-        <input type="submit" value="Analizi Tamamla">
-    </form>
+  <h1>🧠 Karakter Analizi & Taklit</h1>
+  <form id="charForm">
+    <!-- Sorular burada eklenecek -->
+  </form>
+  <button id="analyzeBtn">Analizi Bitir & Taklit Et</button>
+  <div id="result" style="display:none;">
+    <h2>🔍 Karakter Özeti</h2>
+    <div id="traits"></div>
+    <h2>🗣️ Karakterin Taklit Cevabı</h2>
+    <p><strong>Soru:</strong> <span id="simQuestion"></span></p>
+    <p><strong>Cevap:</strong> <span id="simAnswer"></span></p>
+  </div>
 
-    {% if summary %}
-    <div class="result">
-        <h2>🔍 Karakter Özeti</h2>
-        <ul>
-            {% for trait, score in summary.items() %}
-                <li><strong>{{ trait.capitalize() }}:</strong> {{ "%.2f"|format(score) }}%</li>
-            {% endfor %}
-        </ul>
-        <h3>🧠 Taklit Cevap:</h3>
-        <p><strong>Soru:</strong> {{ user_question }}</p>
-        <p><strong>Karakterin Cevabı:</strong> {{ simulated_answer }}</p>
-    </div>
-    {% endif %}
+<script>
+  // ► Adım 1: Sorular
+  const questionSet = {
+    duygusal: [
+      "Seni en son ne ağlattı?",
+      "Bir hayal kırıklığını nasıl atlatırsın?",
+      "Başkaları seni yanlış anladığında ne hissedersin?",
+      "Duygularını bastırır mısın yoksa açıkça ifade eder misin?",
+      "Birine kolay güvenebilir misin?"
+    ],
+    ahlaki: [
+      "Yalan söylemek hangi durumda kabul edilebilir?",
+      "Kendin için doğru ama başkası için zararlı bir şey yapar mısın?",
+      "Birinin suçu üstlenmeni istese ne yaparsın?",
+      "Adalet mi sadakat mi senin için daha önemli?",
+      "İnsanlara ikinci şans verilmeli mi?"
+    ],
+    düşünsel: [
+      "İnsan doğası hakkında ne düşünüyorsun?",
+      "Gerçeğe ulaşmanın en iyi yolu sence nedir?",
+      "Her bilginin sorgulanabilir olması gerektiğine inanır mısın?",
+      "Hayatta anlam aramak önemli midir?",
+      "Kendi düşüncelerini ne sıklıkla sorgularsın?"
+    ],
+    sosyal: [
+      "Toplumun birey üzerindeki etkisi sence ne kadar güçlü?",
+      "Yalnız kalmayı mı kalabalığı mı tercih edersin?",
+      "Sosyal medyanın insan ilişkilerine etkisi hakkında ne düşünüyorsun?",
+      "Bir toplulukta liderliği üstlenir misin?",
+      "Kalabalıklar içinde yalnız hisseder misin?"
+    ],
+    gündelik: [
+      "Bir gününü nasıl planlarsın?",
+      "Stresli bir günün ardından nasıl rahatlıyorsun?",
+      "Düzenli biri misin yoksa dağınıklık seni rahatsız etmez mi?",
+      "Sabah insanı mısın gece kuşu mu?",
+      "Zamanını planlamak mı yoksa akışına bırakmak mı?"
+    ],
+    dil: [
+      "İroni yapmayı sever misin? Hangi durumlarda?",
+      "Kelimelerin insanlar üzerindeki etkisine inanır mısın?",
+      "Kendini ifade ederken hangi tarz sana daha yakın?",
+      "Yazılı mı sözlü iletişimde daha etkilisin?",
+      "Sessizlik mi yoksa konuşmak mı sana iyi gelir?"
+    ]
+  };
+
+  // ► Formu dinamik olarak oluştur
+  const form = document.getElementById('charForm');
+  for (let section in questionSet) {
+    const secDiv = document.createElement('div');
+    secDiv.classList.add('section');
+    secDiv.innerHTML = `<h2>${section.toUpperCase()}</h2>`;
+    questionSet[section].forEach(q => {
+      const div = document.createElement('div');
+      div.classList.add('question');
+      div.innerHTML = `<label>${q}</label><textarea name="${q}" required></textarea>`;
+      secDiv.appendChild(div);
+    });
+    form.appendChild(secDiv);
+  }
+
+  // ► Adım 2: Basit duygu analizi için kelime listeleri
+  const keywords = {
+    pozitif: ["mutlu","iyi", "sev", "güzel", "harika", "memnun", "tamam"],
+    negatif: ["üzgün","kırgın","sinir", "kötü", "nefret", "acı", "kabus"],
+    duygusal: ["hisset", "kalp", "gönül", "ağla", "sevg"],
+    mantıksal: ["düşün", "mantık", "akıl", "analiz", "sebep", "sonuç"],
+    karmaşık: ["ayrıntı", "derin", "çözüm", "katmanlı", "detaylı"]
+  };
+
+  function analyzePolarity(text) {
+    let score = 0;
+    text.toLowerCase().split(/\W+/).forEach(word => {
+      if (keywords.pozitif.includes(word)) score += 1;
+      if (keywords.negatif.includes(word)) score -= 1;
+    });
+    return score;
+  }
+  function analyzeSubjectivity(text) {
+    let p = 0, m = 0;
+    text.toLowerCase().split(/\W+/).forEach(word => {
+      if (keywords.duygusal.includes(word)) p += 1;
+      if (keywords.mantıksal.includes(word)) m += 1;
+    });
+    if (p + m === 0) return 0.5;
+    return p / (p + m);
+  }
+  function analyzeComplexity(text) {
+    return text.split(" ").filter(w => keywords.karmaşık.includes(w.toLowerCase())).length;
+  }
+
+  // ► Analiz ve taklit
+  document.getElementById('analyzeBtn').onclick = function() {
+    let traits = { pozitiflik:0, negatiflik:0, tarafsızlık:0, duygusallık:0, rasyonellik:0, karmaşıklık:0 };
+    const inputs = form.querySelectorAll('textarea');
+    inputs.forEach(t => {
+      const v = t.value;
+      const pol = analyzePolarity(v);
+      const subj = analyzeSubjectivity(v);
+      const comp = analyzeComplexity(v);
+      if (pol > 0) traits.pozitiflik += pol;
+      else if (pol < 0) traits.negatiflik += -pol;
+      else traits.tarafsızlık += 1;
+      if (subj > 0.5) traits.duygusallık += subj;
+      else traits.rasyonellik += (1-subj);
+      traits.karmaşıklık += comp;
+    });
+
+    const total = Object.values(traits).reduce((a,b)=>a+b, 0) || 1;
+    Object.keys(traits).forEach(k => traits[k] = (traits[k]/total*100).toFixed(2));
+
+    // Taklit et
+    const tone = traits.pozitiflik > traits.negatiflik 
+      ? "İyimser bir bakış açısıyla değerlendiriyorum." 
+      : (traits.negatiflik > traits.pozitiflik 
+        ? "Bu konuda temkinliyim." 
+        : "Dengeli bir yaklaşım benimsiyorum.");
+    const emotion = traits.duygusallık > traits.rasyonellik 
+      ? "Duygularım ön planda." 
+      : "Mantık ağırlıklı düşünüyorum.";
+    const complexity = traits.karmaşıklık > 1 
+      ? "Konuya detaylı yaklaşmak isterim." 
+      : "Basitçe düşünmeyi tercih ederim.";
+    const simAnswer = `${tone} ${emotion} ${complexity}`;
+
+    // Göster
+    document.getElementById('traits').innerHTML = Object.entries(traits)
+      .map(([k,v]) => `<div class="trait"><strong>${k}:</strong> ${v}%</div>`).join("");
+    document.getElementById('simQuestion').innerText = "Hayatta başarıyı neye borçluyuz sence?";
+    document.getElementById('simAnswer').innerText = simAnswer;
+    document.getElementById('result').style.display = 'block';
+  }
+</script>
 </body>
 </html>
-"""
-
-# Gelişmiş karakter profili sınıfı
-class AdvancedCharacterProfile:
-    def __init__(self):
-        self.responses = defaultdict(list)
-        self.trait_scores = defaultdict(float)
-
-    def analyze_response(self, category, question, response):
-        self.responses[category].append((question, response))
-
-        blob = TextBlob(response)
-        polarity = blob.sentiment.polarity
-        subjectivity = blob.sentiment.subjectivity
-
-        if polarity > 0.2:
-            self.trait_scores["pozitiflik"] += polarity
-        elif polarity < -0.2:
-            self.trait_scores["negatiflik"] += abs(polarity)
-        else:
-            self.trait_scores["tarafsızlık"] += 1
-
-        if subjectivity > 0.5:
-            self.trait_scores["duygusallık"] += subjectivity
-        else:
-            self.trait_scores["rasyonellik"] += (1 - subjectivity)
-
-        self.trait_scores["dilsel_karmaşıklık"] += len(response.split()) / 10
-
-    def summarize(self):
-        total = sum(self.trait_scores.values()) or 1  # sıfıra bölme hatasını önlemek için
-        return {trait: (score / total) * 100 for trait, score in self.trait_scores.items()}
-
-    def simulate_answer(self, user_question):
-        blob = TextBlob(user_question)
-        style = []
-
-        if self.trait_scores["pozitiflik"] > self.trait_scores["negatiflik"]:
-            base_response = "Bana göre bu konuyu iyimser bir bakış açısıyla değerlendirmek gerek."
-        elif self.trait_scores["negatiflik"] > self.trait_scores["pozitiflik"]:
-            base_response = "Bu konuda oldukça temkinliyim ve pek iyimser düşünemem."
-        else:
-            base_response = "Bu meseleye oldukça tarafsız yaklaşırım."
-
-        if self.trait_scores["duygusallık"] > self.trait_scores["rasyonellik"]:
-            style.append("İçimde hissettiklerim her zaman ağır basar.")
-        else:
-            style.append("Daha çok mantığımı kullanırım böyle durumlarda.")
-
-        if self.trait_scores["dilsel_karmaşıklık"] > 5:
-            style.append("Bu konuyu detaylandırmak gerekirse, çok katmanlı düşünüyorum.")
-        else:
-            style.append("Aslında oldukça sade düşünüyorum bu konuda.")
-
-        return base_response + " " + " ".join(style)
-
-# Sorular kategorilere göre
-questions_advanced = {
-    'duygusal': [
-        "Seni en son ne ağlattı?",
-        "Bir hayal kırıklığını nasıl atlatırsın?",
-        "Başkaları seni yanlış anladığında ne hissedersin?"
-    ],
-    'ahlaki': [
-        "Yalan söylemek hangi durumda kabul edilebilir?",
-        "Kendin için doğru ama başkası için zararlı bir şey yapar mısın?",
-        "Birinin suçu üstlenmeni istese ne yaparsın?"
-    ],
-    'düşünsel': [
-        "İnsan doğası hakkında ne düşünüyorsun?",
-        "Gerçeğe ulaşmanın en iyi yolu sence nedir?",
-        "Her bilginin sorgulanabilir olması gerektiğine inanır mısın?"
-    ],
-    'sosyal': [
-        "Toplumun birey üzerindeki etkisi sence ne kadar güçlü?",
-        "Yalnız kalmayı mı kalabalığı mı tercih edersin?",
-        "Sosyal medyanın insan ilişkilerine etkisi hakkında ne düşünüyorsun?"
-    ],
-    'gündelik': [
-        "Bir gününü nasıl planlarsın?",
-        "Stresli bir günün ardından nasıl rahatlıyorsun?",
-        "Düzenli biri misin yoksa dağınıklık seni rahatsız etmez mi?"
-    ],
-    'dil': [
-        "İroni yapmayı sever misin? Hangi durumlarda?",
-        "Kelimelerin insanlar üzerindeki etkisine inanır mısın?",
-        "Kendini ifade ederken hangi tarz sana daha yakın?"
-    ]
-}
-
-@app.route('/', methods=['GET', 'POST'])
-def form():
-    summary = None
-    simulated_answer = None
-    user_question = "Hayatta başarıyı neye borçluyuz sence?"
-
-    if request.method == 'POST':
-        profile = AdvancedCharacterProfile()
-        for cat, qs in questions_advanced.items():
-            for q in qs:
-                answer = request.form.get(q, "")
-                if answer.strip():
-                    profile.analyze_response(cat, q, answer)
-
-        summary = profile.summarize()
-        simulated_answer = profile.simulate_answer(user_question)
-
-    return render_template_string(
-        html_template,
-        questions=questions_advanced,
-        summary=summary,
-        simulated_answer=simulated_answer,
-        user_question=user_question
-    )
-
-# Flask sunucusunu çalıştır
-if __name__ == '__main__':
-    app.run(debug=True)
