@@ -1,102 +1,172 @@
-import tkinter as tk
-from tkinter import messagebox
+# Gelişmiş karakter analizini web ortamında çalıştırmak için Flask kullanacağız.
+# Bu örnekte, kullanıcı web arayüzünden sorulara cevap verecek, ardından kişilik analizi ve karakter taklidi sunulacak.
 
+from flask import Flask, render_template_string, request
+from textblob import TextBlob
+from collections import defaultdict
 
-def topla(a, b):
-    return a + b
+app = Flask(__name__)
 
-def cikar(a, b):
-    return a - b
+# HTML arayüz şablonu
+html_template = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Karakter Analizi</title>
+    <style>
+        body { font-family: Arial; padding: 30px; background-color: #f4f4f4; }
+        h1 { color: #444; }
+        textarea { width: 100%; height: 80px; }
+        .question { margin-bottom: 20px; }
+        .result { background-color: #fff; padding: 20px; margin-top: 30px; border-radius: 5px; }
+        input[type="submit"] { padding: 10px 20px; font-size: 16px; }
+    </style>
+</head>
+<body>
+    <h1>Karakter Analizi Formu</h1>
+    <form method="post">
+        {% for cat, qs in questions.items() %}
+            <h3>{{ cat.upper() }}</h3>
+            {% for q in qs %}
+                <div class="question">
+                    <label>{{ q }}</label><br>
+                    <textarea name="{{ q }}"></textarea>
+                </div>
+            {% endfor %}
+        {% endfor %}
+        <input type="submit" value="Analizi Tamamla">
+    </form>
 
-def carp(a, b):
-    return a * b
+    {% if summary %}
+    <div class="result">
+        <h2>🔍 Karakter Özeti</h2>
+        <ul>
+            {% for trait, score in summary.items() %}
+                <li><strong>{{ trait.capitalize() }}:</strong> {{ "%.2f"|format(score) }}%</li>
+            {% endfor %}
+        </ul>
+        <h3>🧠 Taklit Cevap:</h3>
+        <p><strong>Soru:</strong> {{ user_question }}</p>
+        <p><strong>Karakterin Cevabı:</strong> {{ simulated_answer }}</p>
+    </div>
+    {% endif %}
+</body>
+</html>
+"""
 
-def bol(a, b):
-    if b != 0:
-        return a / b
-    else:
-        raise ValueError("Sıfıra bölme hatası")
+# Gelişmiş karakter profili sınıfı
+class AdvancedCharacterProfile:
+    def __init__(self):
+        self.responses = defaultdict(list)
+        self.trait_scores = defaultdict(float)
 
+    def analyze_response(self, category, question, response):
+        self.responses[category].append((question, response))
 
-def hesapla():
-    try:
-        a = float(entry1.get())
-        b = float(entry2.get())
-        islem = operation.get()
+        blob = TextBlob(response)
+        polarity = blob.sentiment.polarity
+        subjectivity = blob.sentiment.subjectivity
 
-        if islem == 'Toplama':
-            sonuc = topla(a, b)
-        elif islem == 'Çıkarma':
-            sonuc = cikar(a, b)
-        elif islem == 'Çarpma':
-            sonuc = carp(a, b)
-        elif islem == 'Bölme':
-            sonuc = bol(a, b)
+        if polarity > 0.2:
+            self.trait_scores["pozitiflik"] += polarity
+        elif polarity < -0.2:
+            self.trait_scores["negatiflik"] += abs(polarity)
         else:
-            raise ValueError("Geçersiz İşlem")
+            self.trait_scores["tarafsızlık"] += 1
 
-        result_label.config(text=f"Sonuç: {sonuc}")
-    except ValueError as e:
-        messagebox.showerror("Hata", str(e))
-    except Exception as e:
-        messagebox.showerror("Hata", "Bir hata oluştu. Detaylar: " + str(e))
+        if subjectivity > 0.5:
+            self.trait_scores["duygusallık"] += subjectivity
+        else:
+            self.trait_scores["rasyonellik"] += (1 - subjectivity)
 
+        self.trait_scores["dilsel_karmaşıklık"] += len(response.split()) / 10
 
-root = tk.Tk()
-root.title("Gelişmiş Hesap Makinesi")
+    def summarize(self):
+        total = sum(self.trait_scores.values()) or 1  # sıfıra bölme hatasını önlemek için
+        return {trait: (score / total) * 100 for trait, score in self.trait_scores.items()}
 
-window_width = 400
-window_height = 500
-screen_width = root.winfo_screenwidth()
-screen_height = root.winfo_screenheight()
-x_coordinate = int((screen_width/2) - (window_width/2))
-y_coordinate = int((screen_height/2) - (window_height/2))
-root.geometry(f'{window_width}x{window_height}+{x_coordinate}+{y_coordinate}')
+    def simulate_answer(self, user_question):
+        blob = TextBlob(user_question)
+        style = []
 
+        if self.trait_scores["pozitiflik"] > self.trait_scores["negatiflik"]:
+            base_response = "Bana göre bu konuyu iyimser bir bakış açısıyla değerlendirmek gerek."
+        elif self.trait_scores["negatiflik"] > self.trait_scores["pozitiflik"]:
+            base_response = "Bu konuda oldukça temkinliyim ve pek iyimser düşünemem."
+        else:
+            base_response = "Bu meseleye oldukça tarafsız yaklaşırım."
 
-root.configure(bg='#f0f0f0')
+        if self.trait_scores["duygusallık"] > self.trait_scores["rasyonellik"]:
+            style.append("İçimde hissettiklerim her zaman ağır basar.")
+        else:
+            style.append("Daha çok mantığımı kullanırım böyle durumlarda.")
 
+        if self.trait_scores["dilsel_karmaşıklık"] > 5:
+            style.append("Bu konuyu detaylandırmak gerekirse, çok katmanlı düşünüyorum.")
+        else:
+            style.append("Aslında oldukça sade düşünüyorum bu konuda.")
 
-title_label = tk.Label(root, text="HESAP MAKİNESİ", font=("Helvetica", 24, "bold"), bg='#f0f0f0', fg='#333')
+        return base_response + " " + " ".join(style)
 
+# Sorular kategorilere göre
+questions_advanced = {
+    'duygusal': [
+        "Seni en son ne ağlattı?",
+        "Bir hayal kırıklığını nasıl atlatırsın?",
+        "Başkaları seni yanlış anladığında ne hissedersin?"
+    ],
+    'ahlaki': [
+        "Yalan söylemek hangi durumda kabul edilebilir?",
+        "Kendin için doğru ama başkası için zararlı bir şey yapar mısın?",
+        "Birinin suçu üstlenmeni istese ne yaparsın?"
+    ],
+    'düşünsel': [
+        "İnsan doğası hakkında ne düşünüyorsun?",
+        "Gerçeğe ulaşmanın en iyi yolu sence nedir?",
+        "Her bilginin sorgulanabilir olması gerektiğine inanır mısın?"
+    ],
+    'sosyal': [
+        "Toplumun birey üzerindeki etkisi sence ne kadar güçlü?",
+        "Yalnız kalmayı mı kalabalığı mı tercih edersin?",
+        "Sosyal medyanın insan ilişkilerine etkisi hakkında ne düşünüyorsun?"
+    ],
+    'gündelik': [
+        "Bir gününü nasıl planlarsın?",
+        "Stresli bir günün ardından nasıl rahatlıyorsun?",
+        "Düzenli biri misin yoksa dağınıklık seni rahatsız etmez mi?"
+    ],
+    'dil': [
+        "İroni yapmayı sever misin? Hangi durumlarda?",
+        "Kelimelerin insanlar üzerindeki etkisine inanır mısın?",
+        "Kendini ifade ederken hangi tarz sana daha yakın?"
+    ]
+}
 
-title_label.pack(pady=20)
+@app.route('/', methods=['GET', 'POST'])
+def form():
+    summary = None
+    simulated_answer = None
+    user_question = "Hayatta başarıyı neye borçluyuz sence?"
 
+    if request.method == 'POST':
+        profile = AdvancedCharacterProfile()
+        for cat, qs in questions_advanced.items():
+            for q in qs:
+                answer = request.form.get(q, "")
+                if answer.strip():
+                    profile.analyze_response(cat, q, answer)
 
-frame = tk.Frame(root, bg='#ffffff', bd=2, relief=tk.RAISED)
+        summary = profile.summarize()
+        simulated_answer = profile.simulate_answer(user_question)
 
+    return render_template_string(
+        html_template,
+        questions=questions_advanced,
+        summary=summary,
+        simulated_answer=simulated_answer,
+        user_question=user_question
+    )
 
-frame.place(relx=0.5, rely=0.3, relwidth=0.9, relheight=0.45, anchor='n')
-
-
-label1 = tk.Label(frame, text="Sayı 1:", font=("Helvetica", 16), bg='#ffffff')
-label1.grid(row=0, column=0, padx=10, pady=5, sticky='w')
-entry1 = tk.Entry(frame, font=("Helvetica", 16), bd=2, relief=tk.SOLID)
-entry1.grid(row=0, column=1, padx=10, pady=5)
-
-label2 = tk.Label(frame, text="Sayı 2:", font=("Helvetica", 16), bg='#ffffff')
-label2.grid(row=1, column=0, padx=10, pady=5, sticky='w')
-entry2 = tk.Entry(frame, font=("Helvetica", 16), bd=2, relief=tk.SOLID)
-entry2.grid(row=1, column=1, padx=10, pady=5)
-
-label3 = tk.Label(frame, text="İşlem:", font=("Helvetica", 16), bg='#ffffff')
-label3.grid(row=2, column=0, padx=10, pady=5, sticky='w')
-operation = tk.StringVar()
-operation.set("Toplama")
-operation_menu = tk.OptionMenu(frame, operation, "Toplama", "Çıkarma", "Çarpma", "Bölme")
-operation_menu.config(font=("Helvetica", 16), bg='#ffffff', bd=2)
-operation_menu.grid(row=2, column=1, padx=10, pady=5)
-
-
-calculate_button = tk.Button(root, text="HESAPLA", font=("Helvetica", 18, "bold"), command=hesapla, bg='#007bff', fg='#ffffff', bd=2, relief=tk.RAISED)
-
-calculate_button.place(relx=0.5, rely=0.8, relwidth=0.4, anchor='center')
-
-
-result_label = tk.Label(root, text="Sonuç: ", font=("Helvetica", 20, "bold"), bg='#f0f0f0', fg='#333')
-
-
-result_label.pack(pady=20)
-
-
-root.mainloop()
+# Flask sunucusunu çalıştır
+if __name__ == '__main__':
+    app.run(debug=True)
