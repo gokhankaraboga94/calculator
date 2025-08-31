@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Video Döngüsü</title>
+  <style>
+    body {
+      background-color: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    iframe {
+      width: 800px;
+      height: 450px;
+      border: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="player"></div>
+
+  <script>
+    // YouTube API scriptini yükle
+    let tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    let firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+    // Verdiğin 8 video linkinden alınmış video ID'leri
+    const videoIds = [
+      "HTfP7gUI6g0",
+      "qvzc2vZX__Q",
+      "6k7JbNyfiPg",
+      "63aEMkcCxcI",
+      "0LUF690eM8M",
+      "Ti6-BKNz39I",
+      "mzieIMxgESY",
+      "rGGZnh8W7Oo"
+    ];
+
+    let player;
+    let currentVideoIndex = 0;
+
+    // YouTube API yüklendiğinde çalışacak
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player('player', {
+        videoId: videoIds[currentVideoIndex],
+        events: {
+          'onReady': onPlayerReady,
+          'onStateChange': onPlayerStateChange
+        },
+        playerVars: {
+          'controls': 0,
+          'disablekb': 1,
+          'modestbranding': 1,
+          'rel': 0,
+          'autoplay': 1
+        }
+      });
+    }
+
+    function onPlayerReady(event) {
+      playCurrentVideo();
+    }
+
+    function playCurrentVideo() {
+      player.loadVideoById({
+        videoId: videoIds[currentVideoIndex],
+        startSeconds: 0
+      });
+
+      // 7 saniye sonra sıradaki videoya geç
+      setTimeout(() => {
+        currentVideoIndex = (currentVideoIndex + 1) % videoIds.length;
+        playCurrentVideo();
+      }, 7000);
+    }
+
+    function onPlayerStateChange(event) {
+      // Videonun otomatik başlamasını sağla
+      if (event.data === YT.PlayerState.CUED) {
+        player.playVideo();
+      }
+    }
+  </script>
+</body>
+</html>
