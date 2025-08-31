@@ -2,130 +2,90 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <title>Karakter Analizi & Taklit</title>
+  <title>Video Döngüsü</title>
   <style>
-    body { font-family: Arial, sans-serif; background:#f0f2f5; margin:0; padding:20px; }
-    h1 { text-align:center; }
-    form, #result { max-width:800px; margin:auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.1); }
-    .section { margin-bottom:25px; }
-    .section h2 { border-bottom:1px solid #ccc; padding-bottom:5px; }
-    .question { margin-bottom:15px; }
-    label { font-weight:bold; display:block; margin-bottom:5px; }
-    textarea { width:100%; height:70px; padding:8px; border-radius:4px; border:1px solid #ccc; resize:vertical; }
-    button { display:block; margin:20px auto; padding:10px 20px; font-size:16px; background:#007bff; color:#fff; border:none; border-radius:4px; cursor:pointer; }
-    button:hover { background:#0056b3; }
-    .trait { margin-bottom:8px; }
-    #result { display:none; margin-top:30px; }
+    body {
+      background-color: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    iframe {
+      width: 800px;
+      height: 450px;
+      border: none;
+    }
   </style>
 </head>
 <body>
-
-  <h1>🧠 Karakter Analizi & Taklit</h1>
-
-  <form id="charForm">
-    <!-- Sorular eklenecek buraya JS ile -->
-  </form>
-  <button id="analyzeBtn">Analizi Bitir & Taklit Et</button>
-
-  <div id="result">
-    <h2>🔍 Karakter Özeti</h2>
-    <div id="traits"></div>
-    <h2>🗣️ Karakterin Taklit Cevabı</h2>
-    <p><strong>Soru:</strong> <span id="simQuestion"></span></p>
-    <p><strong>Cevap:</strong> <span id="simAnswer"></span></p>
-  </div>
+  <div id="player"></div>
 
   <script>
-    const questionSet = {
-      duygusal: ["Seni en son ne ağlattı?", "Hayal kırıklıklarını nasıl atlatırsın?", "Yanlış anlaşıldığında ne hissedersin?", "Duygularını açık mı söylersin?", "Güvene ne kadar çabuk yanaşırsın?"],
-      ahlaki: ["Yalan söylemek hiç doğru mu?", "Doğru ama zararlı şey yapar mısın?", "Suçu üstlenir misin?", "Adalet mi sadakat mi daha önemli?", "İkinci şans verilir mi?"],
-      düşünsel: ["İnsan doğası nedir?", "Gerçeğe ulaşmak için ne gerekir?", "Her bilgi sorgulanır mı?", "Hayatta anlam aramak şart mı?", "Düşüncelerini ne sıklıkta sorgularsın?"],
-      sosyal: ["Toplum bireyi nasıl etkiler?", "Yalnız mı kalabalık mı sana göre?", "Sosyal medyanın etkisi nedir?", "Liderlikten hoşlanır mısın?", "Kalabalıkta kendini yalnız hisseder misin?"],
-      gündelik: ["Gününü nasıl planlarsın?", "Stres sonrası ne yaparsın?", "Düzen mi dağınıklık mı sana uygun?", "Sabahçı mısın gece kuşu mu?", "Zamanı mı planlarsın akışa mı bırakırsın?"],
-      dil: ["İroni yapar mısın? Ne zaman?", "Kelimelerin gücüne inanır mısın?", "İletişim tarzın nasıl?", "Yazılı mı sözlü mü etkili?", "Sessizliğe mi yoksa konuşmaya mı değer verirsin?"]
-    };
+    // YouTube API scriptini yükle
+    let tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    let firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-    const form = document.getElementById('charForm');
-    for (let sec in questionSet) {
-      const divSec = document.createElement('div');
-      divSec.className = 'section';
-      divSec.innerHTML = `<h2>${sec.toUpperCase()}</h2>`;
-      questionSet[sec].forEach(q => {
-        const d = document.createElement('div');
-        d.className = 'question';
-        d.innerHTML = `<label>${q}</label><textarea name="${q}" required></textarea>`;
-        divSec.appendChild(d);
+    // Verdiğin 8 video linkinden alınmış video ID'leri
+    const videoIds = [
+      "HTfP7gUI6g0",
+      "qvzc2vZX__Q",
+      "6k7JbNyfiPg",
+      "63aEMkcCxcI",
+      "0LUF690eM8M",
+      "Ti6-BKNz39I",
+      "mzieIMxgESY",
+      "rGGZnh8W7Oo"
+    ];
+
+    let player;
+    let currentVideoIndex = 0;
+
+    // YouTube API yüklendiğinde çalışacak
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player('player', {
+        videoId: videoIds[currentVideoIndex],
+        events: {
+          'onReady': onPlayerReady,
+          'onStateChange': onPlayerStateChange
+        },
+        playerVars: {
+          'controls': 0,
+          'disablekb': 1,
+          'modestbranding': 1,
+          'rel': 0,
+          'autoplay': 1
+        }
       });
-      form.appendChild(divSec);
     }
 
-    const keywords = {
-      pozitif: ["mutlu","iyi","sev","güzel","harika","memnun","tamam"],
-      negatif: ["üzgün","kırgın","sinir","kötü","nefret","acı","kabus"],
-      duygusal: ["hisset","ağla","sevg","kalp","gönül"],
-      mantıksal: ["düşün","mantık","akıl","analiz","sebep","sonuç"],
-      karmaşık: ["ayrıntı","derin","katmanlı","detaylı","çözüm"]
-    };
-
-    function analyzePolarity(t) {
-      let s=0;
-      t.toLowerCase().split(/\W+/).forEach(w=>{
-        if(keywords.pozitif.includes(w)) s++;
-        if(keywords.negatif.includes(w)) s--;
-      });
-      return s;
-    }
-    function analyzeSubjectivity(t){
-      let p=0,m=0;
-      t.toLowerCase().split(/\W+/).forEach(w=>{
-        if(keywords.duygusal.includes(w)) p++;
-        if(keywords.mantıksal.includes(w)) m++;
-      });
-      return p+m? p/(p+m):0.5;
-    }
-    function analyzeComplexity(t){
-      let c=0;
-      t.toLowerCase().split(/\W+/).forEach(w=>{
-        if(keywords.karmaşık.includes(w)) c++;
-      });
-      return c;
+    function onPlayerReady(event) {
+      playCurrentVideo();
     }
 
-    document.getElementById('analyzeBtn').addEventListener('click',()=>{
-      const traits = {poz:0,neg:0,tar:0,duyg:0,raz:0,kar:0};
-      form.querySelectorAll('textarea').forEach(f=>{
-        const v=f.value;
-        const p=analyzePolarity(v), s=analyzeSubjectivity(v), c=analyzeComplexity(v);
-        if(p>0) traits.poz+=p;
-        else if(p<0) traits.neg+=-p;
-        else traits.tar++;
-        if(s>0.5) traits.duyg+=s;
-        else traits.raz+=(1-s);
-        traits.kar+=c;
+    function playCurrentVideo() {
+      player.loadVideoById({
+        videoId: videoIds[currentVideoIndex],
+        startSeconds: 0
       });
-      const total=traits.poz+traits.neg+traits.tar+traits.duyg+traits.raz+traits.kar||1;
-      const out = {
-        Pozitiflik: ((traits.poz/total)*100).toFixed(2),
-        Negatiflik: ((traits.neg/total)*100).toFixed(2),
-        Tarafsızlık: ((traits.tar/total)*100).toFixed(2),
-        Duygusallık: ((traits.duyg/total)*100).toFixed(2),
-        Rasyonellik: ((traits.raz/total)*100).toFixed(2),
-        Karmaşıklık: ((traits.kar/total)*100).toFixed(2)
-      };
-      let tone = out.Pozitiflik > out.Negatiflik ? "İyimser bakıyorum." : (out.Negatiflik > out.Pozitiflik ? "Tedbirli yaklaşıyorum." : "Dengeyi koruyorum.");
-      let emotion = out.Duygusallık > out.Rasyonellik ? "Duygularım ağır basar." : "Mantıkla karar veririm.";
-      let complexity = traits.kar>1 ? "Detaylara önem veririm." : "Basit düşünmeyi tercih ederim.";
 
-      document.getElementById('traits').innerHTML = Object.entries(out).map(([k,v])=>`<div class="trait"><strong>${k}:</strong> ${v}%</div>`).join('');
-      document.getElementById('simQuestion').innerText = "Hayatta başarıyı neye borçluyuz sence?";
-      document.getElementById('simAnswer').innerText = `${tone} ${emotion} ${complexity}`;
-      document.getElementById('result').style.display = 'block';
-      window.scrollTo(0,document.body.scrollHeight);
-    });
+      // 7 saniye sonra sıradaki videoya geç
+      setTimeout(() => {
+        currentVideoIndex = (currentVideoIndex + 1) % videoIds.length;
+        playCurrentVideo();
+      }, 7000);
+    }
+
+    function onPlayerStateChange(event) {
+      // Videonun otomatik başlamasını sağla
+      if (event.data === YT.PlayerState.CUED) {
+        player.playVideo();
+      }
+    }
   </script>
 </body>
 </html>
-
-//
-//
-//
