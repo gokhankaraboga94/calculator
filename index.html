@@ -4,18 +4,23 @@
   <meta charset="UTF-8">
   <title>Video Döngüsü</title>
   <style>
-    body {
-      background-color: #000;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
+    html, body {
       margin: 0;
+      padding: 0;
+      background-color: #000;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    #player {
+      width: 100%;
+      height: 100%;
     }
 
     iframe {
-      width: 800px;
-      height: 450px;
+      width: 100%;
+      height: 100%;
       border: none;
     }
   </style>
@@ -30,7 +35,7 @@
     let firstScriptTag = document.getElementsByTagName('script')[0];
     firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-    // Verdiğin 8 video linkinden alınmış video ID'leri
+    // Video ID'leri
     const videoIds = [
       "HTfP7gUI6g0",
       "qvzc2vZX__Q",
@@ -45,7 +50,6 @@
     let player;
     let currentVideoIndex = 0;
 
-    // YouTube API yüklendiğinde çalışacak
     function onYouTubeIframeAPIReady() {
       player = new YT.Player('player', {
         videoId: videoIds[currentVideoIndex],
@@ -58,13 +62,22 @@
           'disablekb': 1,
           'modestbranding': 1,
           'rel': 0,
-          'autoplay': 1
+          'autoplay': 1,
+          'mute': 1 // Sessiz başlasın ki tarayıcı oynatsın
         }
       });
     }
 
     function onPlayerReady(event) {
       playCurrentVideo();
+
+      // Otomatik tam ekran moduna geç
+      const iframe = document.querySelector('iframe');
+      if (iframe.requestFullscreen) {
+        iframe.requestFullscreen().catch(err => {
+          console.warn("Tam ekran isteği reddedildi:", err);
+        });
+      }
     }
 
     function playCurrentVideo() {
@@ -73,15 +86,14 @@
         startSeconds: 0
       });
 
-      // 7 saniye sonra sıradaki videoya geç
+      // 12 saniye sonra sıradaki videoya geç
       setTimeout(() => {
         currentVideoIndex = (currentVideoIndex + 1) % videoIds.length;
         playCurrentVideo();
-      }, 12000);
+      }, 12000); // 12 saniye
     }
 
     function onPlayerStateChange(event) {
-      // Videonun otomatik başlamasını sağla
       if (event.data === YT.PlayerState.CUED) {
         player.playVideo();
       }
