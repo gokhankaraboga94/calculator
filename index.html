@@ -7,8 +7,8 @@
     html, body {
       margin: 0;
       padding: 0;
-      height: 100%;
       width: 100%;
+      height: 100%;
       overflow: hidden;
       background-color: #000;
     }
@@ -20,7 +20,7 @@
       width: 100vw;
       height: 100vh;
       z-index: 1;
-      pointer-events: none; /* Fare etkileşimini engelle (kontrolsüz oynatma için) */
+      pointer-events: none;
     }
 
     iframe {
@@ -28,26 +28,10 @@
       height: 100%;
       border: none;
     }
-
-    #startBtn {
-      position: absolute;
-      z-index: 2;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      padding: 20px 40px;
-      font-size: 20px;
-      background-color: #ff0000;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-    }
   </style>
 </head>
 <body>
-  <button id="startBtn">▶ Başlat</button>
-  <div id="player" style="display: none;"></div>
+  <div id="player"></div>
 
   <script>
     // YouTube API'sini yükle
@@ -70,15 +54,6 @@
     let player;
     let currentVideoIndex = 0;
 
-    // Kullanıcı tıklayınca başlat
-    document.getElementById('startBtn').addEventListener('click', () => {
-      document.getElementById('startBtn').style.display = 'none';
-      document.getElementById('player').style.display = 'block';
-      if (typeof onYouTubeIframeAPIReady === "function") {
-        onYouTubeIframeAPIReady();
-      }
-    });
-
     function onYouTubeIframeAPIReady() {
       player = new YT.Player('player', {
         videoId: videoIds[currentVideoIndex],
@@ -87,46 +62,48 @@
           'onStateChange': onPlayerStateChange
         },
         playerVars: {
-          'controls': 0,
-          'disablekb': 1,
-          'modestbranding': 1,
-          'rel': 0,
-          'autoplay': 1,
-          'mute': 0, // Sesi aç
-          'playsinline': 1
+          autoplay: 1,
+          controls: 0,
+          disablekb: 1,
+          modestbranding: 1,
+          rel: 0,
+          mute: 1, // İlk başta sessiz başlat
+          playsinline: 1
         }
       });
     }
 
     function onPlayerReady(event) {
-      playCurrentVideo();
+      // Videoyu başlat
+      event.target.playVideo();
 
-      // Otomatik tam ekran isteği
-      const iframe = document.querySelector('iframe');
-      if (iframe && iframe.requestFullscreen) {
-        iframe.requestFullscreen().catch(err => {
-          console.warn("Tam ekran reddedildi:", err);
-        });
-      }
-    }
-
-    function playCurrentVideo() {
-      player.loadVideoById({
-        videoId: videoIds[currentVideoIndex],
-        startSeconds: 0
-      });
-
-      // 12 saniye sonra sonraki videoya geç
+      // 1 saniye sonra sesi açmayı dene (bazı tarayıcılarda işe yarar)
       setTimeout(() => {
-        currentVideoIndex = (currentVideoIndex + 1) % videoIds.length;
-        playCurrentVideo();
-      }, 12000);
+        player.unMute();
+      }, 1000);
+
+      // Her 12 saniyede bir sonraki videoya geç
+      setTimeout(playNextVideo, 12000);
     }
 
     function onPlayerStateChange(event) {
+      // Eğer video cue edildiğinde oynatmaya geçmiyorsa, zorla başlat
       if (event.data === YT.PlayerState.CUED) {
         player.playVideo();
       }
+    }
+
+    function playNextVideo() {
+      currentVideoIndex = (currentVideoIndex + 1) % videoIds.length;
+      player.loadVideoById(videoIds[currentVideoIndex]);
+
+      // Tekrar sesi açmayı dene
+      setTimeout(() => {
+        player.unMute();
+      }, 1000);
+
+      // 12 saniye sonra tekrar değiştir
+      setTimeout(playNextVideo, 12000);
     }
   </script>
 </body>
