@@ -2,16 +2,17 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8">
-  <title>Video Döngüsü</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mobil Video Döngüsü</title>
   <style>
     html, body {
       margin: 0;
       padding: 0;
       width: 100vw;
       height: 100vh;
-      overflow: hidden;
       background-color: #000;
-      cursor: pointer;
+      overflow: hidden;
+      touch-action: manipulation; /* mobilde daha iyi tepki */
     }
 
     #player {
@@ -40,11 +41,12 @@
       background: rgba(0, 0, 0, 0.5);
       padding: 6px 12px;
       border-radius: 4px;
+      font-size: 14px;
     }
   </style>
 </head>
 <body>
-  <div id="info">🔇 Tıklarsan ses açılır</div>
+  <div id="info">🔇 Dokununca ses açılır</div>
   <div id="player"></div>
 
   <script>
@@ -82,7 +84,7 @@
           disablekb: 1,
           modestbranding: 1,
           rel: 0,
-          mute: 1, // Sessiz başlat
+          mute: 1, // sessiz başlat (zorunlu)
           playsinline: 1
         }
       });
@@ -90,6 +92,19 @@
 
     function onPlayerReady(event) {
       event.target.playVideo();
+
+      // 12 saniyede bir video değiştir
+      setTimeout(playNextVideo, 12000);
+    }
+
+    function playNextVideo() {
+      currentVideoIndex = (currentVideoIndex + 1) % videoIds.length;
+      player.loadVideoById(videoIds[currentVideoIndex]);
+
+      if (!isMuted) {
+        setTimeout(() => player.unMute(), 500);
+      }
+
       setTimeout(playNextVideo, 12000);
     }
 
@@ -99,25 +114,14 @@
       }
     }
 
-    function playNextVideo() {
-      currentVideoIndex = (currentVideoIndex + 1) % videoIds.length;
-      player.loadVideoById(videoIds[currentVideoIndex]);
-      if (!isMuted) {
-        setTimeout(() => player.unMute(), 1000);
-      }
-      setTimeout(playNextVideo, 12000);
-    }
-
-    // Tıklayınca sesi aç
-    document.body.addEventListener('click', () => {
-      if (isMuted) {
+    // Dokunma ile sesi aç
+    document.body.addEventListener('touchstart', () => {
+      if (isMuted && player && typeof player.unMute === 'function') {
         player.unMute();
         isMuted = false;
         document.getElementById('info').textContent = "🔊 Ses açık";
       }
-    });
+    }, { once: true }); // sadece ilk dokunuşta çalışır
   </script>
 </body>
 </html>
-
-
