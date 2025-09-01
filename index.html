@@ -7,10 +7,11 @@
     html, body {
       margin: 0;
       padding: 0;
-      width: 100%;
-      height: 100%;
+      width: 100vw;
+      height: 100vh;
       overflow: hidden;
       background-color: #000;
+      cursor: pointer;
     }
 
     #player {
@@ -28,13 +29,26 @@
       height: 100%;
       border: none;
     }
+
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: white;
+      font-family: sans-serif;
+      z-index: 10;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 6px 12px;
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body>
+  <div id="info">🔇 Tıklarsan ses açılır</div>
   <div id="player"></div>
 
   <script>
-    // YouTube API'sini yükle
+    // YouTube API yükle
     let tag = document.createElement('script');
     tag.src = "https://www.youtube.com/iframe_api";
     let firstScriptTag = document.getElementsByTagName('script')[0];
@@ -53,6 +67,7 @@
 
     let player;
     let currentVideoIndex = 0;
+    let isMuted = true;
 
     function onYouTubeIframeAPIReady() {
       player = new YT.Player('player', {
@@ -67,27 +82,18 @@
           disablekb: 1,
           modestbranding: 1,
           rel: 0,
-          mute: 1, // İlk başta sessiz başlat
+          mute: 1, // Sessiz başlat
           playsinline: 1
         }
       });
     }
 
     function onPlayerReady(event) {
-      // Videoyu başlat
       event.target.playVideo();
-
-      // 1 saniye sonra sesi açmayı dene (bazı tarayıcılarda işe yarar)
-      setTimeout(() => {
-        player.unMute();
-      }, 1000);
-
-      // Her 12 saniyede bir sonraki videoya geç
       setTimeout(playNextVideo, 12000);
     }
 
     function onPlayerStateChange(event) {
-      // Eğer video cue edildiğinde oynatmaya geçmiyorsa, zorla başlat
       if (event.data === YT.PlayerState.CUED) {
         player.playVideo();
       }
@@ -96,15 +102,20 @@
     function playNextVideo() {
       currentVideoIndex = (currentVideoIndex + 1) % videoIds.length;
       player.loadVideoById(videoIds[currentVideoIndex]);
-
-      // Tekrar sesi açmayı dene
-      setTimeout(() => {
-        player.unMute();
-      }, 1000);
-
-      // 12 saniye sonra tekrar değiştir
+      if (!isMuted) {
+        setTimeout(() => player.unMute(), 1000);
+      }
       setTimeout(playNextVideo, 12000);
     }
+
+    // Tıklayınca sesi aç
+    document.body.addEventListener('click', () => {
+      if (isMuted) {
+        player.unMute();
+        isMuted = false;
+        document.getElementById('info').textContent = "🔊 Ses açık";
+      }
+    });
   </script>
 </body>
 </html>
