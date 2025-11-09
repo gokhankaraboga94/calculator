@@ -55,9 +55,13 @@ th { background: #1abc9c; color: white; }
   <h3>Kullanıcı Yönetimi</h3>
   <input type="email" id="new-user-email" placeholder="Yeni Kullanıcı E-posta">
   <input type="password" id="new-user-password" placeholder="Şifre">
+  <select id="new-user-role">
+    <option value="user">Normal Kullanıcı</option>
+    <option value="admin">Admin</option>
+  </select>
   <button id="add-user-btn">Kullanıcı Ekle</button>
   <table id="users-table">
-    <thead><tr><th>E-posta</th><th>UID</th><th>İşlem</th></tr></thead>
+    <thead><tr><th>E-posta</th><th>Rol</th><th>UID</th><th>İşlem</th></tr></thead>
     <tbody></tbody>
   </table>
 
@@ -91,7 +95,7 @@ th { background: #1abc9c; color: white; }
 
 <script>
 const firebaseConfig = {
-apiKey: "AIzaSyC9UR3h7xZcZ973U44SftwIZCY5HG5mS34",
+  apiKey: "AIzaSyC9UR3h7xZcZ973U44SftwIZCY5HG5mS34",
   authDomain: "fiyatlar-a9067.firebaseapp.com",
   databaseURL: "https://fiyatlar-a9067-default-rtdb.firebaseio.com",
   projectId: "fiyatlar-a9067",
@@ -117,6 +121,7 @@ const authMessage = document.getElementById('auth-message');
 // Admin: kullanıcı
 const newUserEmail = document.getElementById('new-user-email');
 const newUserPassword = document.getElementById('new-user-password');
+const newUserRole = document.getElementById('new-user-role');
 const addUserBtn = document.getElementById('add-user-btn');
 const usersTableBody = document.querySelector('#users-table tbody');
 
@@ -137,139 +142,265 @@ const userPart3 = document.getElementById('user-part3');
 const calculateBtn = document.getElementById('calculateBtn');
 const totalPriceEl = document.getElementById('total-price');
 
-// Login
-loginBtn.addEventListener('click', () => {
-  auth.signInWithEmailAndPassword(emailInput.value, passwordInput.value)
-  .then(userCredential => {
+// Authentication state observer
+auth.onAuthStateChanged(user => {
+  if (user) {
+    // Kullanıcı giriş yapmış
     authContainer.classList.add('hidden');
     logoutBtn.classList.remove('hidden');
-    checkAdmin(userCredential.user.email);
-  })
-  .catch(e => authMessage.textContent = e.message);
+    
+    // Kullanıcı rolünü kontrol et
+    checkUserRole(user.uid);
+  } else {
+    // Kullanıcı çıkış yapmış
+    authContainer.classList.remove('hidden');
+    adminPanel.classList.add('hidden');
+    userPanel.classList.add('hidden');
+    logoutBtn.classList.add('hidden');
+  }
 });
 
-logoutBtn.addEventListener('click', () => auth.signOut().then(()=>location.reload()));
-
-function checkAdmin(email){
-  if(email === 'admin@example.com'){ 
-    adminPanel.classList.remove('hidden'); 
-    loadParts(); 
-    loadUsers();
-  } else {
-    userPanel.classList.remove('hidden'); 
-    loadBrands();
+// Login
+loginBtn.addEventListener('click', () => {
+  const email = emailInput.value;
+  const password = passwordInput.value;
+  
+  if (!email || !password) {
+    authMessage.textContent = 'E-posta ve şifre giriniz.';
+    return;
   }
+  
+  auth.signInWithEmailAndPassword(email, password)
+  .then(userCredential => {
+    authMessage.textContent = '';
+    emailInput.value = '';
+    passwordInput.value = '';
+  })
+  .catch(e => {
+    authMessage.textContent = 'Giriş başarısız: ' + e.message;
+  });
+});
+
+logoutBtn.addEventListener('click', () => auth.signOut());
+
+// Kullanıcı rolünü kontrol et
+function checkUserRole(uid) {
+  db.ref('users/' + uid).once('value')
+  .then(snapshot => {
+    const userData = snapshot.val();
+    if (userData && userData.role === 'admin') {
+      adminPanel.classList.remove('hidden');
+      userPanel.classList.add('hidden');
+      loadParts();
+      loadUsers();
+    } else {
+      adminPanel.classList.add('hidden');
+      userPanel.classList.remove('hidden');
+      loadBrands();
+    }
+  })
+  .catch(error => {
+    console.error('Rol kontrolü hatası:', error);
+    adminPanel.classList.add('hidden');
+    userPanel.classList.remove('hidden');
+    loadBrands();
+  });
 }
 
 // Admin: kullanıcı ekle
-addUserBtn.addEventListener('click', ()=>{
+addUserBtn.addEventListener('click', () => {
   const email = newUserEmail.value.trim();
   const password = newUserPassword.value.trim();
-  if(!email||!password)return alert('Email ve şifre girin');
-  auth.createUserWithEmailAndPassword(email,password)
-    .then(cred=>{
-      db.ref('users/'+cred.user.uid).set({email: email});
-      newUserEmail.value=''; newUserPassword.value='';
+  const role = newUserRole.value;
+  
+  if (!email || !password) {
+    alert('Email ve şifre girin');
+    return;
+  }
+  
+  auth.createUserWithEmailAndPassword(email, password)
+    .then(cred => {
+      // Kullanıcıyı veritabanına kaydet
+      db.ref('users/' + cred.user.uid).set({
+        email: email,
+        role: role
+      });
+      newUserEmail.value = '';
+      newUserPassword.value = '';
+      alert('Kullanıcı başarıyla eklendi');
+    })
+    .catch(error => {
+      alert('Kullanıcı eklenirken hata: ' + error.message);
     });
 });
 
 // Admin: kullanıcı listele
-function loadUsers(){
-  db.ref('users').on('value', snapshot=>{
-    usersTableBody.innerHTML='';
-    snapshot.forEach(snap=>{
-      const data=snap.val();
-      const row=document.createElement('tr');
-      row.innerHTML=`<td>${data.email}</td><td>${snap.key}</td><td><button class="action-btn" onclick="deleteUser('${snap.key}')">Sil</button></td>`;
+function loadUsers() {
+  db.ref('users').on('value', snapshot => {
+    usersTableBody.innerHTML = '';
+    snapshot.forEach(snap => {
+      const data = snap.val();
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${data.email}</td>
+        <td>${data.role || 'user'}</td>
+        <td>${snap.key}</td>
+        <td>
+          <button class="action-btn" onclick="deleteUser('${snap.key}', '${data.email}')">Sil</button>
+        </td>`;
       usersTableBody.appendChild(row);
     });
   });
 }
 
 // Admin: kullanıcı sil
-function deleteUser(uid){
-  if(confirm('Kullanıcı silinsin mi?')){
-    db.ref('users/'+uid).remove();
-    auth.currentUser.uid !== uid && firebase.auth().deleteUser(uid).catch(()=>{}); // güvenlik için
+function deleteUser(uid, email) {
+  if (confirm(`${email} kullanıcısını silmek istediğinizden emin misiniz?`)) {
+    // Veritabanından kullanıcıyı sil
+    db.ref('users/' + uid).remove()
+      .then(() => {
+        alert('Kullanıcı başarıyla silindi');
+      })
+      .catch(error => {
+        alert('Kullanıcı silinirken hata: ' + error.message);
+      });
   }
 }
 
 // Admin: parça ekle
-addPartBtn.addEventListener('click', ()=>{
-  const brand=adminBrand.value.trim();
-  const model=adminModel.value.trim();
-  const part=adminPart.value.trim();
-  const price=parseFloat(adminPrice.value);
-  if(!brand||!model||!part||!price)return alert('Tüm alanları doldurun');
-  const newKey=db.ref().child('parts').push().key;
-  db.ref('parts/'+newKey).set({brand,model,part,price});
-  adminBrand.value='';adminModel.value='';adminPart.value='';adminPrice.value='';
+addPartBtn.addEventListener('click', () => {
+  const brand = adminBrand.value.trim();
+  const model = adminModel.value.trim();
+  const part = adminPart.value.trim();
+  const price = parseFloat(adminPrice.value);
+  
+  if (!brand || !model || !part || !price) {
+    alert('Tüm alanları doldurun');
+    return;
+  }
+  
+  const newKey = db.ref().child('parts').push().key;
+  db.ref('parts/' + newKey).set({ brand, model, part, price })
+    .then(() => {
+      adminBrand.value = '';
+      adminModel.value = '';
+      adminPart.value = '';
+      adminPrice.value = '';
+      alert('Parça başarıyla eklendi');
+    })
+    .catch(error => {
+      alert('Parça eklenirken hata: ' + error.message);
+    });
 });
 
 // Admin: parça listele/düzenle/sil
-function loadParts(){
-  db.ref('parts').on('value', snapshot=>{
-    partsTableBody.innerHTML='';
-    snapshot.forEach(snap=>{
-      const data=snap.val();
-      const row=document.createElement('tr');
-      row.innerHTML=`<td>${data.brand}</td><td>${data.model}</td><td>${data.part}</td><td>${data.price}</td>
-      <td><button class="action-btn edit-btn" onclick="editPart('${snap.key}','${data.brand}','${data.model}','${data.part}','${data.price}')">Düzenle</button>
-      <button class="action-btn" onclick="deletePart('${snap.key}')">Sil</button></td>`;
+function loadParts() {
+  db.ref('parts').on('value', snapshot => {
+    partsTableBody.innerHTML = '';
+    snapshot.forEach(snap => {
+      const data = snap.val();
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${data.brand}</td>
+        <td>${data.model}</td>
+        <td>${data.part}</td>
+        <td>${data.price}</td>
+        <td>
+          <button class="action-btn edit-btn" onclick="editPart('${snap.key}','${data.brand}','${data.model}','${data.part}','${data.price}')">Düzenle</button>
+          <button class="action-btn" onclick="deletePart('${snap.key}')">Sil</button>
+        </td>`;
       partsTableBody.appendChild(row);
     });
   });
 }
 
-function editPart(key,brand,model,part,price){
-  const newBrand = prompt('Marka',brand);
-  const newModel = prompt('Model',model);
-  const newPart = prompt('Parça',part);
-  const newPrice = prompt('Fiyat',price);
-  if(newBrand && newModel && newPart && newPrice){
-    db.ref('parts/'+key).set({brand:newBrand,model:newModel,part:newPart,price:parseFloat(newPrice)});
+function editPart(key, brand, model, part, price) {
+  const newBrand = prompt('Marka', brand);
+  const newModel = prompt('Model', model);
+  const newPart = prompt('Parça', part);
+  const newPrice = prompt('Fiyat', price);
+  
+  if (newBrand && newModel && newPart && newPrice) {
+    db.ref('parts/' + key).set({
+      brand: newBrand,
+      model: newModel,
+      part: newPart,
+      price: parseFloat(newPrice)
+    })
+    .then(() => {
+      alert('Parça başarıyla güncellendi');
+    })
+    .catch(error => {
+      alert('Parça güncellenirken hata: ' + error.message);
+    });
   }
 }
 
-function deletePart(key){ if(confirm('Parça silinsin mi?')) db.ref('parts/'+key).remove(); }
+function deletePart(key) {
+  if (confirm('Parça silinsin mi?')) {
+    db.ref('parts/' + key).remove()
+      .then(() => {
+        alert('Parça başarıyla silindi');
+      })
+      .catch(error => {
+        alert('Parça silinirken hata: ' + error.message);
+      });
+  }
+}
 
 // User: marka/model/parça seçimleri
-function loadBrands(){
-  db.ref('parts').once('value', snapshot=>{
-    const brands=new Set();
-    snapshot.forEach(snap=>brands.add(snap.val().brand));
-    userBrand.innerHTML='<option value="">Seçiniz</option>';
-    brands.forEach(b=>userBrand.innerHTML+=`<option value="${b}">${b}</option>`);
+function loadBrands() {
+  db.ref('parts').once('value', snapshot => {
+    const brands = new Set();
+    snapshot.forEach(snap => brands.add(snap.val().brand));
+    userBrand.innerHTML = '<option value="">Seçiniz</option>';
+    brands.forEach(b => userBrand.innerHTML += `<option value="${b}">${b}</option>`);
   });
 }
 
-userBrand.addEventListener('change',()=>{
-  const brand=userBrand.value;
-  userModel.innerHTML='<option value="">Seçiniz</option>';
-  db.ref('parts').orderByChild('brand').equalTo(brand).once('value', snapshot=>{
-    const models=new Set();
-    snapshot.forEach(snap=>models.add(snap.val().model));
-    models.forEach(m=>userModel.innerHTML+=`<option value="${m}">${m}</option>`);
+userBrand.addEventListener('change', () => {
+  const brand = userBrand.value;
+  userModel.innerHTML = '<option value="">Seçiniz</option>';
+  userPart1.innerHTML = '<option value="">Zorunlu Parça</option>';
+  userPart2.innerHTML = '<option value="">Opsiyonel Parça 1</option>';
+  userPart3.innerHTML = '<option value="">Opsiyonel Parça 2</option>';
+  
+  if (!brand) return;
+  
+  db.ref('parts').orderByChild('brand').equalTo(brand).once('value', snapshot => {
+    const models = new Set();
+    snapshot.forEach(snap => models.add(snap.val().model));
+    models.forEach(m => userModel.innerHTML += `<option value="${m}">${m}</option>`);
   });
 });
 
-userModel.addEventListener('change',()=>{
-  const brand=userBrand.value;
-  const model=userModel.value;
-  [userPart1,userPart2,userPart3].forEach(s=>s.innerHTML='<option value="">Seçiniz</option>');
-  db.ref('parts').orderByChild('brand').equalTo(brand).once('value', snapshot=>{
-    snapshot.forEach(snap=>{
-      const data=snap.val();
-      if(data.model===model){
-        [userPart1,userPart2,userPart3].forEach(s=>s.innerHTML+=`<option value="${data.price}">${data.part}</option>`);
+userModel.addEventListener('change', () => {
+  const brand = userBrand.value;
+  const model = userModel.value;
+  
+  [userPart1, userPart2, userPart3].forEach(s => s.innerHTML = '<option value="">Seçiniz</option>');
+  
+  if (!brand || !model) return;
+  
+  db.ref('parts').orderByChild('brand').equalTo(brand).once('value', snapshot => {
+    snapshot.forEach(snap => {
+      const data = snap.val();
+      if (data.model === model) {
+        [userPart1, userPart2, userPart3].forEach(s => 
+          s.innerHTML += `<option value="${data.price}">${data.part} - ${data.price} TL</option>`
+        );
       }
     });
   });
 });
 
-calculateBtn.addEventListener('click',()=>{
-  const prices=[parseFloat(userPart1.value)||0,parseFloat(userPart2.value)||0,parseFloat(userPart3.value)||0];
-  totalPriceEl.textContent=prices.reduce((a,b)=>a+b,0);
+calculateBtn.addEventListener('click', () => {
+  const prices = [
+    parseFloat(userPart1.value) || 0,
+    parseFloat(userPart2.value) || 0,
+    parseFloat(userPart3.value) || 0
+  ];
+  totalPriceEl.textContent = prices.reduce((a, b) => a + b, 0);
 });
 </script>
 </body>
