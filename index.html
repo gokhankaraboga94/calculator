@@ -1,127 +1,275 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mobil Video Döngüsü</title>
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100vw;
-      height: 100vh;
-      background-color: #000;
-      overflow: hidden;
-      touch-action: manipulation; /* mobilde daha iyi tepki */
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parça Fiyat Sistemi</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-    #player {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 1;
-      pointer-events: none;
-    }
-
-    iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-    }
-
-    #info {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      color: white;
-      font-family: sans-serif;
-      z-index: 10;
-      background: rgba(0, 0, 0, 0.5);
-      padding: 6px 12px;
-      border-radius: 4px;
-      font-size: 14px;
-    }
-  </style>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+body { background: #f0f2f5; }
+nav { background: #1abc9c; display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem; color: white; flex-wrap: wrap; }
+nav .logo { font-weight: bold; font-size: 1.5rem; }
+nav .nav-links { display: flex; gap: 1rem; }
+nav .nav-links a { color: white; text-decoration: none; font-weight: 500; transition: 0.3s; }
+nav .nav-links a:hover { text-decoration: underline; }
+.container { max-width: 950px; margin: 2rem auto; padding: 2rem; background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); transition: 0.3s; }
+.container h2 { margin-bottom: 1rem; color: #333; }
+input, select, button { width: 100%; padding: 0.8rem; margin: 0.5rem 0; border-radius: 8px; border: 1px solid #ccc; font-size: 1rem; }
+input:focus, select:focus { border-color: #1abc9c; outline: none; }
+button { background: #1abc9c; color: white; border: none; cursor: pointer; font-weight: bold; transition: 0.3s; }
+button:hover { background: #16a085; }
+.hidden { display: none; }
+table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+th, td { padding: 0.75rem; border: 1px solid #ddd; text-align: left; }
+th { background: #1abc9c; color: white; }
+.action-btn { background: #e74c3c; padding: 0.3rem 0.5rem; font-size: 0.9rem; border-radius: 5px; margin-right: 0.3rem; }
+.edit-btn { background: #f39c12; }
+@media(max-width:768px){ nav { flex-direction: column; align-items: flex-start; } nav .nav-links { margin-top: 0.5rem; flex-direction: column; width: 100%; } .container { padding: 1rem; margin: 1rem; } }
+</style>
 </head>
 <body>
-  <div id="info">🔇 Dokununca ses açılır</div>
-  <div id="player"></div>
 
-  <script>
-    // YouTube API yükle
-    let tag = document.createElement('script');
-    tag.src = "https://www.youtube.com/iframe_api";
-    let firstScriptTag = document.getElementsByTagName('script')[0];
-    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+<nav>
+  <div class="logo">Parça Fiyat Sistemi</div>
+  <div class="nav-links">
+    <a href="#" id="logoutBtn" class="hidden">Çıkış</a>
+  </div>
+</nav>
 
-    const videoIds = [
-      "HTfP7gUI6g0",
-      "qvzc2vZX__Q",
-      "6k7JbNyfiPg",
-      "63aEMkcCxcI",
-      "0LUF690eM8M",
-      "Ti6-BKNz39I",
-      "mzieIMxgESY",
-      "rGGZnh8W7Oo"
-    ];
+<div class="container" id="auth-container">
+  <h2>Kullanıcı Girişi</h2>
+  <input type="email" id="email" placeholder="E-posta">
+  <input type="password" id="password" placeholder="Şifre">
+  <button id="loginBtn">Giriş Yap</button>
+  <p id="auth-message" style="color:red;"></p>
+</div>
 
-    let player;
-    let currentVideoIndex = 0;
-    let isMuted = true;
+<!-- Admin Panel -->
+<div class="container hidden" id="admin-panel">
+  <h2>Admin Paneli</h2>
 
-    function onYouTubeIframeAPIReady() {
-      player = new YT.Player('player', {
-        videoId: videoIds[currentVideoIndex],
-        events: {
-          'onReady': onPlayerReady,
-          'onStateChange': onPlayerStateChange
-        },
-        playerVars: {
-          autoplay: 1,
-          controls: 0,
-          disablekb: 1,
-          modestbranding: 1,
-          rel: 0,
-          mute: 1, // sessiz başlat (zorunlu)
-          playsinline: 1
-        }
-      });
-    }
+  <h3>Kullanıcı Yönetimi</h3>
+  <input type="email" id="new-user-email" placeholder="Yeni Kullanıcı E-posta">
+  <input type="password" id="new-user-password" placeholder="Şifre">
+  <button id="add-user-btn">Kullanıcı Ekle</button>
+  <table id="users-table">
+    <thead><tr><th>E-posta</th><th>UID</th><th>İşlem</th></tr></thead>
+    <tbody></tbody>
+  </table>
 
-    function onPlayerReady(event) {
-      event.target.playVideo();
+  <h3>Parça Yönetimi</h3>
+  <input type="text" id="admin-brand" placeholder="Marka">
+  <input type="text" id="admin-model" placeholder="Model">
+  <input type="text" id="admin-part" placeholder="Parça Adı">
+  <input type="number" id="admin-price" placeholder="Fiyat">
+  <button id="add-part-btn">Parçayı Kaydet</button>
 
-      // 12 saniyede bir video değiştir
-      setTimeout(playNextVideo, 12000);
-    }
+  <table id="parts-table">
+    <thead><tr><th>Marka</th><th>Model</th><th>Parça</th><th>Fiyat</th><th>İşlem</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
 
-    function playNextVideo() {
-      currentVideoIndex = (currentVideoIndex + 1) % videoIds.length;
-      player.loadVideoById(videoIds[currentVideoIndex]);
+<!-- User Panel -->
+<div class="container hidden" id="user-panel">
+  <h2>Kullanıcı Paneli</h2>
+  <label>Marka Seç:</label>
+  <select id="user-brand"><option value="">Seçiniz</option></select>
+  <label>Model Seç:</label>
+  <select id="user-model"><option value="">Seçiniz</option></select>
+  <label>Parça Seç (1 zorunlu + 2 opsiyonel)</label>
+  <select id="user-part1"><option value="">Zorunlu Parça</option></select>
+  <select id="user-part2"><option value="">Opsiyonel Parça 1</option></select>
+  <select id="user-part3"><option value="">Opsiyonel Parça 2</option></select>
+  <button id="calculateBtn">Fiyat Hesapla</button>
+  <h3>Toplam Fiyat: <span id="total-price">0</span> TL</h3>
+</div>
 
-      if (!isMuted) {
-        setTimeout(() => player.unMute(), 500);
+<script>
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT.firebaseio.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+const authContainer = document.getElementById('auth-container');
+const adminPanel = document.getElementById('admin-panel');
+const userPanel = document.getElementById('user-panel');
+const logoutBtn = document.getElementById('logoutBtn');
+
+const emailInput = document.getElementById('email');
+const passwordInput = document.getElementById('password');
+const loginBtn = document.getElementById('loginBtn');
+const authMessage = document.getElementById('auth-message');
+
+// Admin: kullanıcı
+const newUserEmail = document.getElementById('new-user-email');
+const newUserPassword = document.getElementById('new-user-password');
+const addUserBtn = document.getElementById('add-user-btn');
+const usersTableBody = document.querySelector('#users-table tbody');
+
+// Admin: parça
+const adminBrand = document.getElementById('admin-brand');
+const adminModel = document.getElementById('admin-model');
+const adminPart = document.getElementById('admin-part');
+const adminPrice = document.getElementById('admin-price');
+const addPartBtn = document.getElementById('add-part-btn');
+const partsTableBody = document.querySelector('#parts-table tbody');
+
+// User
+const userBrand = document.getElementById('user-brand');
+const userModel = document.getElementById('user-model');
+const userPart1 = document.getElementById('user-part1');
+const userPart2 = document.getElementById('user-part2');
+const userPart3 = document.getElementById('user-part3');
+const calculateBtn = document.getElementById('calculateBtn');
+const totalPriceEl = document.getElementById('total-price');
+
+// Login
+loginBtn.addEventListener('click', () => {
+  auth.signInWithEmailAndPassword(emailInput.value, passwordInput.value)
+  .then(userCredential => {
+    authContainer.classList.add('hidden');
+    logoutBtn.classList.remove('hidden');
+    checkAdmin(userCredential.user.email);
+  })
+  .catch(e => authMessage.textContent = e.message);
+});
+
+logoutBtn.addEventListener('click', () => auth.signOut().then(()=>location.reload()));
+
+function checkAdmin(email){
+  if(email === 'admin@example.com'){ 
+    adminPanel.classList.remove('hidden'); 
+    loadParts(); 
+    loadUsers();
+  } else {
+    userPanel.classList.remove('hidden'); 
+    loadBrands();
+  }
+}
+
+// Admin: kullanıcı ekle
+addUserBtn.addEventListener('click', ()=>{
+  const email = newUserEmail.value.trim();
+  const password = newUserPassword.value.trim();
+  if(!email||!password)return alert('Email ve şifre girin');
+  auth.createUserWithEmailAndPassword(email,password)
+    .then(cred=>{
+      db.ref('users/'+cred.user.uid).set({email: email});
+      newUserEmail.value=''; newUserPassword.value='';
+    });
+});
+
+// Admin: kullanıcı listele
+function loadUsers(){
+  db.ref('users').on('value', snapshot=>{
+    usersTableBody.innerHTML='';
+    snapshot.forEach(snap=>{
+      const data=snap.val();
+      const row=document.createElement('tr');
+      row.innerHTML=`<td>${data.email}</td><td>${snap.key}</td><td><button class="action-btn" onclick="deleteUser('${snap.key}')">Sil</button></td>`;
+      usersTableBody.appendChild(row);
+    });
+  });
+}
+
+// Admin: kullanıcı sil
+function deleteUser(uid){
+  if(confirm('Kullanıcı silinsin mi?')){
+    db.ref('users/'+uid).remove();
+    auth.currentUser.uid !== uid && firebase.auth().deleteUser(uid).catch(()=>{}); // güvenlik için
+  }
+}
+
+// Admin: parça ekle
+addPartBtn.addEventListener('click', ()=>{
+  const brand=adminBrand.value.trim();
+  const model=adminModel.value.trim();
+  const part=adminPart.value.trim();
+  const price=parseFloat(adminPrice.value);
+  if(!brand||!model||!part||!price)return alert('Tüm alanları doldurun');
+  const newKey=db.ref().child('parts').push().key;
+  db.ref('parts/'+newKey).set({brand,model,part,price});
+  adminBrand.value='';adminModel.value='';adminPart.value='';adminPrice.value='';
+});
+
+// Admin: parça listele/düzenle/sil
+function loadParts(){
+  db.ref('parts').on('value', snapshot=>{
+    partsTableBody.innerHTML='';
+    snapshot.forEach(snap=>{
+      const data=snap.val();
+      const row=document.createElement('tr');
+      row.innerHTML=`<td>${data.brand}</td><td>${data.model}</td><td>${data.part}</td><td>${data.price}</td>
+      <td><button class="action-btn edit-btn" onclick="editPart('${snap.key}','${data.brand}','${data.model}','${data.part}','${data.price}')">Düzenle</button>
+      <button class="action-btn" onclick="deletePart('${snap.key}')">Sil</button></td>`;
+      partsTableBody.appendChild(row);
+    });
+  });
+}
+
+function editPart(key,brand,model,part,price){
+  const newBrand = prompt('Marka',brand);
+  const newModel = prompt('Model',model);
+  const newPart = prompt('Parça',part);
+  const newPrice = prompt('Fiyat',price);
+  if(newBrand && newModel && newPart && newPrice){
+    db.ref('parts/'+key).set({brand:newBrand,model:newModel,part:newPart,price:parseFloat(newPrice)});
+  }
+}
+
+function deletePart(key){ if(confirm('Parça silinsin mi?')) db.ref('parts/'+key).remove(); }
+
+// User: marka/model/parça seçimleri
+function loadBrands(){
+  db.ref('parts').once('value', snapshot=>{
+    const brands=new Set();
+    snapshot.forEach(snap=>brands.add(snap.val().brand));
+    userBrand.innerHTML='<option value="">Seçiniz</option>';
+    brands.forEach(b=>userBrand.innerHTML+=`<option value="${b}">${b}</option>`);
+  });
+}
+
+userBrand.addEventListener('change',()=>{
+  const brand=userBrand.value;
+  userModel.innerHTML='<option value="">Seçiniz</option>';
+  db.ref('parts').orderByChild('brand').equalTo(brand).once('value', snapshot=>{
+    const models=new Set();
+    snapshot.forEach(snap=>models.add(snap.val().model));
+    models.forEach(m=>userModel.innerHTML+=`<option value="${m}">${m}</option>`);
+  });
+});
+
+userModel.addEventListener('change',()=>{
+  const brand=userBrand.value;
+  const model=userModel.value;
+  [userPart1,userPart2,userPart3].forEach(s=>s.innerHTML='<option value="">Seçiniz</option>');
+  db.ref('parts').orderByChild('brand').equalTo(brand).once('value', snapshot=>{
+    snapshot.forEach(snap=>{
+      const data=snap.val();
+      if(data.model===model){
+        [userPart1,userPart2,userPart3].forEach(s=>s.innerHTML+=`<option value="${data.price}">${data.part}</option>`);
       }
+    });
+  });
+});
 
-      setTimeout(playNextVideo, 12000);
-    }
-
-    function onPlayerStateChange(event) {
-      if (event.data === YT.PlayerState.CUED) {
-        player.playVideo();
-      }
-    }
-
-    // Dokunma ile sesi aç
-    document.body.addEventListener('touchstart', () => {
-      if (isMuted && player && typeof player.unMute === 'function') {
-        player.unMute();
-        isMuted = false;
-        document.getElementById('info').textContent = "🔊 Ses açık";
-      }
-    }, { once: true }); // sadece ilk dokunuşta çalışır
-  </script>
+calculateBtn.addEventListener('click',()=>{
+  const prices=[parseFloat(userPart1.value)||0,parseFloat(userPart2.value)||0,parseFloat(userPart3.value)||0];
+  totalPriceEl.textContent=prices.reduce((a,b)=>a+b,0);
+});
+</script>
 </body>
 </html>
